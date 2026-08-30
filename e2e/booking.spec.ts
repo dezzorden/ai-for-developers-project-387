@@ -53,6 +53,73 @@ test.describe('интеграционные сценарии записи на �
     await expect(page.getByText('Запись подтверждена')).not.toBeVisible();
   });
 
+  test.describe('границы 14-дневного окна записи', () => {
+    test('гость записывается на слот последнего дня окна', async ({ page }) => {
+      await page.goto('/events/intro-call');
+
+      const lastDay = page.locator('.day-button').last();
+      await expect(lastDay).toBeVisible();
+      await lastDay.click();
+      await expect(lastDay).toHaveAttribute('data-active', 'true');
+
+      const lastSlot = page.locator('.slot-button').last();
+      await expect(lastSlot).toBeVisible();
+      await lastSlot.click();
+
+      await page.getByLabel('Имя').fill('Гость на границе окна');
+      await page.getByLabel('Email').fill(`edge-${Date.now()}@example.com`);
+      await page.getByRole('button', { name: /Записаться на/ }).click();
+
+      await expect(page.getByText('Запись подтверждена')).toBeVisible();
+    });
+
+    test('UI не подтверждает запись за пределами окна и показывает ошибку', async ({ page, request }) => {
+      const availabilityResponse = await request.get('http://127.0.0.1:3000/event-types/intro-call/slots');
+      expect(availabilityResponse.ok()).toBeTruthy();
+      const availability = await availabilityResponse.json() as {
+        windowEnd: string;
+        items: Array<{ eventTypeId: string; startAt: string; endAt: string }>;
+      };
+
+      const injectedOutsideSlot = {
+        eventTypeId: 'intro-call',
+        startAt: availability.windowEnd,
+        endAt: new Date(Date.parse(availability.windowEnd) + 30 * 60 * 1000).toISOString(),
+      };
+
+      await page.route('**/event-types/intro-call/slots', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ...availability, items: [...availability.items, injectedOutsideSlot] }),
+        });
+      });
+
+      await page.goto('/events/intro-call');
+
+      const outsideDay = page.locator('.day-button').last();
+      await expect(outsideDay).toBeVisible();
+      await outsideDay.click();
+      await expect(outsideDay).toHaveAttribute('data-active', 'true');
+
+      const outsideTime = new Intl.DateTimeFormat('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(availability.windowEnd));
+      const outsideButton = page.getByRole('button', { name: outsideTime });
+      await expect(outsideButton).toBeVisible();
+      await outsideButton.click();
+      await page.getByLabel('Имя').fill('Гость за пределами окна');
+      await page.getByLabel('Email').fill(`outside-${Date.now()}@example.com`);
+      await page.getByRole('button', { name: /Записаться на/ }).click();
+
+      await expect(page.getByText('Не удалось забронировать')).toBeVisible();
+      await expect(page.getByText(/вне 14-дневного окна записи/)).toBeVisible();
+      await expect(page.getByText('Запись подтверждена')).not.toBeVisible();
+    });
+  });
+
   test('владелец создает тип события, доступный в публичном каталоге', async ({ page }) => {
     const suffix = Date.now();
     const eventId = `architecture-review-${suffix}`;
