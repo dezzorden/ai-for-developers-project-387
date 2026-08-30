@@ -30,4 +30,11 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
-          model: opencode/gpt-5.6-terra
+          model: opencode/big-pickle
+
+      - name: Dump model registry (diagnostics)
+        if: failure()
+        shell: bash
+        run: |
+          opencode --version
+          opencode models
