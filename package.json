@@ -1,0 +1,24 @@
+{
+  "name": "call-booking",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "typespec:compile": "tsp compile .",
+    "mock": "npm run typespec:compile && prism mock tsp-output/openapi/openapi.yaml --port 4010 --cors",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:dev:mock": "npm --prefix frontend run dev:mock",
+    "frontend:build": "npm --prefix frontend run build",
+    "backend:dev": "npm --prefix backend run start:dev",
+    "backend:build": "npm --prefix backend run build",
+    "backend:test": "npm --prefix backend test",
+    "e2e": "playwright test",
+    "e2e:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@stoplight/prism-cli": "5.16.0",
+    "@typespec/compiler": "1.15.0",
+    "@typespec/http": "1.15.0",
+    "@typespec/openapi3": "1.15.0"
+  }
+}

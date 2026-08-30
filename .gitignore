@@ -1,0 +1,9 @@
+node_modules/
+tsp-output/
+frontend/dist/
+frontend/.env.local
+backend/dist/
+backend/coverage/
+*.tsbuildinfo
+playwright-report/
+test-results/
