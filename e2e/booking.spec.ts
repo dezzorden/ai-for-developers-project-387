@@ -54,17 +54,17 @@ test.describe('интеграционные сценарии записи на �
   });
 
   test.describe('границы 14-дневного окна записи', () => {
-    test('гость записывается на слот последнего дня окна', async ({ page }) => {
+    test('гость записывается на слот первого дня окна', async ({ page }) => {
       await page.goto('/events/intro-call');
 
-      const lastDay = page.locator('.day-button').last();
-      await expect(lastDay).toBeVisible();
-      await lastDay.click();
-      await expect(lastDay).toHaveAttribute('data-active', 'true');
+      const firstDay = page.locator('.day-button').first();
+      await expect(firstDay).toBeVisible();
+      await firstDay.click();
+      await expect(firstDay).toHaveAttribute('data-active', 'true');
 
-      const lastSlot = page.locator('.slot-button').last();
-      await expect(lastSlot).toBeVisible();
-      await lastSlot.click();
+      const firstSlot = page.locator('.slot-button').first();
+      await expect(firstSlot).toBeVisible();
+      await firstSlot.click();
 
       await page.getByLabel('Имя').fill('Гость на границе окна');
       await page.getByLabel('Email').fill(`edge-${Date.now()}@example.com`);
