@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/dezzorden/ai-for-developers-project-387/compare/v0.2.0...v0.3.0) (2026-08-31)
+
+
+### Features
+
+* **frontend:** add Moscow clock to homepage + tests ([6390a81](https://github.com/dezzorden/ai-for-developers-project-387/commit/6390a818dbdc1ba25c9f273abb5c964d64ce9985))
+
 ## [0.2.0](https://github.com/dezzorden/ai-for-developers-project-387/compare/v0.1.0...v0.2.0) (2026-08-31)
 
 
