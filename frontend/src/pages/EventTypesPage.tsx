@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Badge,
   Box,
@@ -18,12 +18,35 @@ import { api, type EventType, type Owner } from '../api/client';
 import { ErrorAlert, PageLoader } from '../components/ApiState';
 import { formatDuration } from '../utils/date';
 
+const MOSCOW_TZ = 'Europe/Moscow';
+
+function formatMoscowTime(now: Date): string {
+  return new Intl.DateTimeFormat('ru-RU', {
+    timeZone: MOSCOW_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(now);
+}
+
 export function EventTypesPage() {
   const [owner, setOwner] = useState<Owner | null>(null);
   const [events, setEvents] = useState<EventType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+
+  const [moscowTime, setMoscowTime] = useState(() => formatMoscowTime(new Date()));
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const tick = useCallback(() => setMoscowTime(formatMoscowTime(new Date())), []);
+
+  useEffect(() => {
+    tick();
+    timerRef.current = setInterval(tick, 60_000);
+    return () => {
+      if (timerRef.current !== null) clearInterval(timerRef.current);
+    };
+  }, [tick]);
 
   useEffect(() => {
     let active = true;
@@ -65,6 +88,9 @@ export function EventTypesPage() {
               <Text size="sm">{owner.timeZone}</Text>
             </Group>
           )}
+          <Text size="lg" fw={600} className="moscow-clock" data-testid="moscow-clock">
+            {moscowTime}
+          </Text>
         </Container>
       </Box>
 
