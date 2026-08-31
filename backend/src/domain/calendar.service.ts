@@ -25,14 +25,14 @@ export class CalendarService {
       title: 'Знакомство',
       description: 'Обсудим вашу задачу и поймем, чем можем быть полезны друг другу.',
       durationMinutes: 30,
-      createdAt: new Date().toISOString(),
+      createdAt: this.toUtcIso(DateTime.now()),
     },
     {
       id: 'product-demo',
       title: 'Демонстрация продукта',
       description: 'Покажем возможности продукта на вашем сценарии.',
       durationMinutes: 60,
-      createdAt: new Date().toISOString(),
+      createdAt: this.toUtcIso(DateTime.now()),
     },
   ];
 
@@ -53,7 +53,7 @@ export class CalendarService {
 
     const eventType: EventType = {
       ...input,
-      createdAt: new Date().toISOString(),
+      createdAt: this.toUtcIso(DateTime.now()),
     };
     this.eventTypes.push(eventType);
     return eventType;
@@ -123,7 +123,7 @@ export class CalendarService {
       endAt: this.toUtcIso(end),
       guestName: input.guestName,
       guestEmail: input.guestEmail,
-      createdAt: new Date().toISOString(),
+      createdAt: this.toUtcIso(DateTime.now()),
     };
 
     this.bookings.push(booking);
@@ -131,12 +131,12 @@ export class CalendarService {
   }
 
   listUpcomingBookings(): { generatedAt: string; items: Booking[] } {
-    const now = Date.now();
+    const now = DateTime.now();
     return {
-      generatedAt: new Date(now).toISOString(),
+      generatedAt: this.toUtcIso(now),
       items: this.bookings
-        .filter((booking) => Date.parse(booking.startAt) > now)
-        .sort((left, right) => Date.parse(left.startAt) - Date.parse(right.startAt)),
+        .filter((booking) => DateTime.fromISO(booking.startAt) > now)
+        .sort((left, right) => DateTime.fromISO(left.startAt).toMillis() - DateTime.fromISO(right.startAt).toMillis()),
     };
   }
 
