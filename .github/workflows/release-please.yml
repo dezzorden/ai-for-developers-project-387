@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: release-please-main
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
@@ -16,5 +20,7 @@ jobs:
       - name: Create or update release PR
         uses: googleapis/release-please-action@v4
         with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          target-branch: main
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
