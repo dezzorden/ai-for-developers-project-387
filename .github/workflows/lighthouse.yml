@@ -1,0 +1,145 @@
+name: Nightly Lighthouse audit
+
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: lighthouse-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+
+      - name: Build application
+        run: |
+          npm run typespec:compile
+          npm run backend:build
+          npm run frontend:build
+
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Start application
+        shell: bash
+        run: |
+          mkdir -p .lighthouse
+          npm --prefix backend start > .lighthouse/backend.log 2>&1 &
+          echo $! > .lighthouse/backend.pid
+          npm --prefix frontend run preview -- --host 127.0.0.1 --port 5173 > .lighthouse/frontend.log 2>&1 &
+          echo $! > .lighthouse/frontend.pid
+          npx --yes wait-on@8.0.1 http://127.0.0.1:3000/owner http://127.0.0.1:5173/
+
+      - name: Run Lighthouse CLI
+        shell: bash
+        run: |
+          npx --yes lighthouse@12.8.2 http://127.0.0.1:5173/ \
+            --preset=desktop \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags='--headless --no-sandbox --disable-dev-shm-usage' \
+            --output=html \
+            --output-path=.lighthouse/report.html
+          npx --yes lighthouse@12.8.2 http://127.0.0.1:5173/ \
+            --preset=desktop \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --chrome-flags='--headless --no-sandbox --disable-dev-shm-usage' \
+            --output=json \
+            --output-path=.lighthouse/report.json
+
+      - name: Create morning summary
+        if: always()
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = '.lighthouse/report.json';
+          const summary = process.env.GITHUB_STEP_SUMMARY;
+
+          if (!fs.existsSync(path)) {
+            fs.appendFileSync(summary, '## Lighthouse\n\nОтчет не создан. Проверьте логи запуска и состояние приложения.\n');
+            process.exit(0);
+          }
+
+          const report = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const categories = [
+            ['performance', 'Performance', 80],
+            ['accessibility', 'Accessibility', 90],
+            ['best-practices', 'Best Practices', 90],
+            ['seo', 'SEO', 90],
+          ];
+          const rows = categories.map(([id, name, threshold]) => {
+            const score = Math.round((report.categories[id]?.score ?? 0) * 100);
+            return `| ${name} | ${score} | ${threshold} | ${score < threshold ? 'Нужны правки' : 'OK'} |`;
+          });
+          const failed = categories.filter(([id, , threshold]) =>
+            Math.round((report.categories[id]?.score ?? 0) * 100) < threshold,
+          );
+          const audits = Object.values(report.audits)
+            .filter((audit) => audit.score !== null && audit.score < 1 && audit.details?.items?.length)
+            .sort((left, right) => (left.score ?? 0) - (right.score ?? 0))
+            .slice(0, 8)
+            .map((audit) => `- ${audit.title}: ${audit.displayValue ?? 'проверить детали'}`);
+
+          const result = failed.length ? 'Нужны правки' : 'Критичных правок по порогам не выявлено';
+          const lines = [
+            '## Lighthouse',
+            '',
+            `Результат: **${result}**`,
+            '',
+            '| Категория | Оценка | Порог | Статус |',
+            '| --- | ---: | ---: | --- |',
+            ...rows,
+            '',
+            '### Аудиты для просмотра',
+            '',
+            ...(audits.length ? audits : ['- Все проверенные аудиты имеют максимальную оценку.']),
+            '',
+            'Полный HTML и JSON отчет доступны в artifact `lighthouse-report`.',
+          ];
+          fs.appendFileSync(summary, `${lines.join('\n')}\n`);
+          NODE
+
+      - name: Upload Lighthouse report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: lighthouse-report
+          path: .lighthouse/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Stop application
+        if: always()
+        shell: bash
+        run: |
+          test ! -f .lighthouse/backend.pid || kill "$(cat .lighthouse/backend.pid)" || true
+          test ! -f .lighthouse/frontend.pid || kill "$(cat .lighthouse/frontend.pid)" || true
