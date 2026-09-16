@@ -22,4 +22,6 @@ fix(api): prevent overlapping bookings
 ci(release): configure release-please
 ```
 
+Every PR created by the agent must follow Conventional Commits: the PR title must have the same `<type>(optional-scope): <description>` format, and all commits inside that PR must also comply with it.
+
 Never create a commit unless the user explicitly requests it.
