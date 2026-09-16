@@ -28,6 +28,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
           model: opencode/big-pickle
+          use_github_token: true
           prompt: |
             Автоматический ревью нового Pull Request. Выполни следующее:
             1. Прочитай заголовок, описание PR и список изменённых файлов.
