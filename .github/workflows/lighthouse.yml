@@ -11,6 +11,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   lighthouse:
@@ -52,11 +53,11 @@ jobs:
       - name: Start application
         shell: bash
         run: |
-          mkdir -p .lighthouse
-          npm --prefix backend start > .lighthouse/backend.log 2>&1 &
-          echo $! > .lighthouse/backend.pid
-          npm --prefix frontend run preview -- --host 127.0.0.1 --port 5173 > .lighthouse/frontend.log 2>&1 &
-          echo $! > .lighthouse/frontend.pid
+          mkdir -p lighthouse
+          npm --prefix backend start > lighthouse/backend.log 2>&1 &
+          echo $! > lighthouse/backend.pid
+          npm --prefix frontend run preview -- --host 127.0.0.1 --port 5173 > lighthouse/frontend.log 2>&1 &
+          echo $! > lighthouse/frontend.pid
           npx --yes wait-on@8.0.1 http://127.0.0.1:3000/owner http://127.0.0.1:5173/
 
       - name: Run Lighthouse CLI
@@ -67,13 +68,13 @@ jobs:
             --only-categories=performance,accessibility,best-practices,seo \
             --chrome-flags='--headless --no-sandbox --disable-dev-shm-usage' \
             --output=html \
-            --output-path=.lighthouse/report.html
+            --output-path=lighthouse/report.html
           npx --yes lighthouse@12.8.2 http://127.0.0.1:5173/ \
             --preset=desktop \
             --only-categories=performance,accessibility,best-practices,seo \
             --chrome-flags='--headless --no-sandbox --disable-dev-shm-usage' \
             --output=json \
-            --output-path=.lighthouse/report.json
+            --output-path=lighthouse/report.json
 
       - name: Create morning summary
         if: always()
@@ -81,7 +82,7 @@ jobs:
         run: |
           node <<'NODE'
           const fs = require('node:fs');
-          const path = '.lighthouse/report.json';
+          const path = 'lighthouse/report.json';
           const summary = process.env.GITHUB_STEP_SUMMARY;
 
           if (!fs.existsSync(path)) {
@@ -133,7 +134,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: lighthouse-report
-          path: .lighthouse/
+          path: lighthouse/
           retention-days: 14
           if-no-files-found: warn
 
@@ -141,5 +142,59 @@ jobs:
         if: always()
         shell: bash
         run: |
-          test ! -f .lighthouse/backend.pid || kill "$(cat .lighthouse/backend.pid)" || true
-          test ! -f .lighthouse/frontend.pid || kill "$(cat .lighthouse/frontend.pid)" || true
+          test ! -f lighthouse/backend.pid || kill "$(cat lighthouse/backend.pid)" || true
+          test ! -f lighthouse/frontend.pid || kill "$(cat lighthouse/frontend.pid)" || true
+
+      - name: Create issue on failures
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = 'lighthouse/report.json';
+            if (!fs.existsSync(path)) {
+              core.warning('report.json not found – skipping issue creation');
+              return;
+            }
+            const report = JSON.parse(fs.readFileSync(path, 'utf8'));
+            const categories = [
+              ['performance', 'Performance', 80],
+              ['accessibility', 'Accessibility', 90],
+              ['best-practices', 'Best Practices', 90],
+              ['seo', 'SEO', 90],
+            ];
+            const failed = categories
+              .filter(([id, , threshold]) =>
+                Math.round((report.categories[id]?.score ?? 0) * 100) < threshold,
+              )
+              .map(([id, name, threshold]) => {
+                const score = Math.round((report.categories[id]?.score ?? 0) * 100);
+                return `- **${name}**: ${score} / ${threshold}`;
+              });
+            if (!failed.length) {
+              core.info('All categories above thresholds – no issue created');
+              return;
+            }
+            const title = `Lighthouse: ${failed.length} categor${failed.length === 1 ? 'y' : 'ies'} below threshold`;
+            const body = [
+              '## Lighthouse audit failed',
+              '',
+              'Categories below threshold:',
+              '',
+              ...failed,
+              '',
+              '### How to reproduce',
+              '',
+              '1. Run the Lighthouse workflow manually from the Actions tab.',
+              '2. Download the `lighthouse-report` artifact for full HTML/JSON details.',
+              '',
+              'Leave a comment containing `/oc` to have an agent investigate this report.',
+            ].join('\n');
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['lighthouse', 'automated'],
+            });
+            core.info(`Created issue #${issue.number}: ${issue.html_url}`);
