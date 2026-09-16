@@ -1,0 +1,42 @@
+name: Issue Triage
+
+on:
+  issues:
+    types: [opened]
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Run opencode triage
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        with:
+          model: opencode/big-pickle
+          use_github_token: true
+          prompt: |
+            Автотриаж нового issue. Выполни следующее:
+            1. Прочитай заголовок и тело issue.
+            2. Определи категорию: bug, feature, docs, question, chore.
+            3. Оцени приоритет: critical, high, medium, low.
+            4. Проверь, дублирует ли issue существующие проблемы.
+            5. Оставь комментарий с результатами триажа на русском языке:
+               - Предлагаемая категория и приоритет.
+               - Краткое описание сути проблемы или запроса.
+               - Рекомендации по следующим шагам.
+            6. Если проект не содержит кода для проверки — просто подтверди получение issue и попроси автора уточнить детали.

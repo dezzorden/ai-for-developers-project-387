@@ -1,0 +1,46 @@
+name: PR Auto Review
+
+on:
+  pull_request:
+    types: [opened]
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Run opencode review
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        with:
+          model: opencode/big-pickle
+          use_github_token: true
+          prompt: |
+            Автоматический ревью нового Pull Request. Выполни следующее:
+            1. Прочитай заголовок, описание PR и список изменённых файлов.
+            2. Проверь соответствие Conventional Commits в заголовке.
+            3. Оцени качество кода:
+               - Наличие ошибок и потенциальных багов.
+               - Соответствие стилю кода проекта.
+               - Отсутствие секретов, ключей и конфиденциальных данных.
+               - Наличие необходимых тестов.
+            4. Проверь, что PR не содержит незапланированных изменений.
+            5. Оставь комментарий-ревью на русском языке с итогами:
+               - Общая оценка (approve / request changes / comment).
+               - Список замечаний (если есть) с указанием файлов и строк.
+               - Рекомендации по улучшению.
+            6. Если PR содержит только документацию или конфигурацию — дай краткую оценку без глубокого анализа.
