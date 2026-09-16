@@ -1,5 +1,9 @@
 # Agent Instructions
 
+## Language
+
+All agent output — comments, commit messages, PR descriptions, reviews, and issue responses — must be written in Russian. The only exception is code itself and machine-readable identifiers (branch names, variable names, etc.).
+
 ## Verification
 
 After code or configuration changes, run the relevant builds and tests, start the affected application, verify its primary page or endpoint, and fix runtime errors before reporting completion. Keep the final report brief and state any unavailable verification explicitly.
